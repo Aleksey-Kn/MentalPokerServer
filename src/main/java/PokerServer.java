@@ -4,7 +4,6 @@ import baseAlghoritms.Environ;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
-import com.esotericsoftware.minlog.Log;
 
 import java.util.ArrayList;
 
@@ -28,7 +27,6 @@ public class PokerServer extends Listener {
         server.getKryo().register(Boolean.class);
         server.start();
         server.addListener(new PokerServer(Integer.parseInt(args[0]), (args.length > 1? Integer.parseInt(args[1]): 52)));
-        Log.DEBUG();
     }
 
     private PokerServer(int gamers, int cardsCounter){
@@ -65,6 +63,7 @@ public class PokerServer extends Listener {
     @Override
     public void disconnected(Connection connection) {
         users.removeIf(e -> e == connection.getID());
+        userStepCount = 0;
     }
 
     @Override
@@ -78,8 +77,10 @@ public class PokerServer extends Listener {
                 }
             }
         } else if(object instanceof ArrayList) {
-            if (++userStepCount < users.size()) {
+            System.out.println("User step count: " + userStepCount);
+            if (userStepCount < users.size() - 1) {
                 server.sendToTCP(users.get(userStepCount), object);
+                userStepCount++;
             } else{
                 ArrayList<Integer> nowCards = (ArrayList<Integer>) object;
                 for(int ip: users){
