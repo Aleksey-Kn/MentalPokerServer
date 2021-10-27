@@ -1,32 +1,31 @@
-import DTO.*;
+import DTO.Card;
+import DTO.DecodingMessage;
 import baseAlghoritms.Environ;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
-import com.google.gson.Gson;
 
 import java.util.ArrayList;
 
 public class PokerServer extends Listener {
     private static Server server;
 
-    private final long p;
+    private final int p;
     private int userStepCount = 0;
     private final int gamersNumber;
-    private ArrayList<Integer> cards = new ArrayList<>();
+    private final ArrayList<Integer> cards = new ArrayList<>();
     private final ArrayList<Integer> users = new ArrayList<>();
-    private final Gson gson = new Gson();
 
     public static void main(String[] args) throws Exception{
         int tcpPort = 27960;
-        int udpPort = 27960;
         server = new Server();
-        server.bind(tcpPort, udpPort);
+        server.bind(tcpPort);
         server.getKryo().register(Integer.class);
-        server.getKryo().register(String.class);
+        server.getKryo().register(ArrayList.class);
         server.getKryo().register(Long.class);
         server.getKryo().register(DecodingMessage.class);
+        server.getKryo().register(Boolean.class);
         server.start();
         server.addListener(new PokerServer(Integer.parseInt(args[0]), (args.length > 1? Integer.parseInt(args[1]): 52)));
         Log.DEBUG();
@@ -64,26 +63,25 @@ public class PokerServer extends Listener {
     }
 
     @Override
-    public void connected(Connection connection) {
-        connection.sendTCP(p);
-        users.add(connection.getID());
-        if(users.size() == gamersNumber){
-            connection.sendTCP(gson.toJson(cards));
-        }
-    }
-
-    @Override
     public void disconnected(Connection connection) {
         users.removeIf(e -> e == connection.getID());
     }
 
     @Override
     public void received(Connection connection, Object object) {
-        if(object instanceof String) {
+        if(object instanceof Boolean){
+            if((boolean) object) {
+                connection.sendTCP((long) p);
+                users.add(connection.getID());
+                if (users.size() == gamersNumber) {
+                    connection.sendTCP(cards);
+                }
+            }
+        } else if(object instanceof ArrayList) {
             if (++userStepCount < users.size()) {
                 server.sendToTCP(users.get(userStepCount), object);
             } else{
-                ArrayList<Integer> nowCards = (ArrayList<Integer>) gson.fromJson((String)object, ArrayList.class);
+                ArrayList<Integer> nowCards = (ArrayList<Integer>) object;
                 for(int ip: users){
                     server.sendToTCP(ip, nowCards.remove(0));
                     server.sendToTCP(ip, nowCards.remove(0));
