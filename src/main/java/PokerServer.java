@@ -6,6 +6,7 @@ import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class PokerServer extends Listener {
     private static Server server;
@@ -25,6 +26,7 @@ public class PokerServer extends Listener {
         server.getKryo().register(Long.class);
         server.getKryo().register(DecodingMessage.class);
         server.getKryo().register(Boolean.class);
+        server.getKryo().register(Integer[].class);
         server.start();
         server.addListener(new PokerServer(Integer.parseInt(args[0]), (args.length > 1? Integer.parseInt(args[1]): 52)));
     }
@@ -56,14 +58,13 @@ public class PokerServer extends Listener {
             default:
                 throw new IllegalArgumentException("Incorrect size of pack");
         }
-        System.out.println("Cards:");
+        System.out.println("All cards:");
         cards.forEach(c -> System.out.println(new Card(c)));
     }
 
     @Override
     public void disconnected(Connection connection) {
         users.removeIf(e -> e == connection.getID());
-        userStepCount = 0;
     }
 
     @Override
@@ -77,20 +78,36 @@ public class PokerServer extends Listener {
                 }
             }
         } else if(object instanceof ArrayList) {
-            System.out.println("User step count: " + userStepCount);
+            System.out.println("Encrypt step count: " + userStepCount);
             if (userStepCount < users.size() - 1) {
                 server.sendToTCP(users.get(userStepCount), object);
                 userStepCount++;
             } else{
                 ArrayList<Integer> nowCards = (ArrayList<Integer>) object;
                 for(int ip: users){
-                    server.sendToTCP(ip, nowCards.remove(0));
-                    server.sendToTCP(ip, nowCards.remove(0));
+                    server.sendToTCP(ip, nowCards.remove(nowCards.size() - 1));
+                    server.sendToTCP(ip, nowCards.remove(nowCards.size() - 1));
+                }
+                userStepCount = 0;
+                server.sendToTCP(users.get(userStepCount++), nowCards.stream()
+                        .skip(nowCards.size() - 5)
+                        .toArray(Integer[]::new));
+                for(int i = 0; i < 5; i++) {
+                    nowCards.remove(nowCards.size() - 1);
                 }
             }
         } else if(object instanceof DecodingMessage){
             int indexUser = users.indexOf(connection.getID()) + 1;
             server.sendToTCP(indexUser == users.size()? users.get(0): users.get(indexUser), object);
+        } else if (object instanceof Integer[]) {
+            System.out.println("Decrypt step count: " + userStepCount);
+            if(userStepCount < users.size()) {
+                server.sendToTCP(users.get(userStepCount++), object);
+            } else {
+                System.out.println("Table: ");
+                Arrays.stream((Integer[]) object).map(Card::new).forEach(System.out::println);
+                userStepCount = 0;
+            }
         }
     }
 }
